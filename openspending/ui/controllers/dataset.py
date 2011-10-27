@@ -15,6 +15,7 @@ from openspending.ui.lib.base import BaseController, render, abort
 from openspending.ui.lib.browser import Browser
 from openspending.ui.lib.views import View, ViewState, handle_request
 from openspending.ui.lib.color import rgb_rainbow
+from openspending.validation.currency import CURRENCIES
 
 log = logging.getLogger(__name__)
 
@@ -39,8 +40,6 @@ class DatasetController(BaseController):
             return render('dataset/index.html')
 
     def new(self):
-        # TODO: move this part to core
-        from openspending.etl.validation.currency import CURRENCIES
         c.currencies = [(k, v['name']) for k,v in CURRENCIES.items()]
         c.currencies = sorted(c.currencies, key=lambda (k,v): v)
         return render('dataset/new.html')
