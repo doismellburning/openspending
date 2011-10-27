@@ -25,4 +25,4 @@ class Dataset(PreservingMappingSchema):
     label = SchemaNode(String())
     description = SchemaNode(String())
     currency = SchemaNode(CurrencyCode())
-    unique_keys = UniqueKeys(validator=Function(_unique_keys))
+    #unique_keys = UniqueKeys(validator=Function(_unique_keys))

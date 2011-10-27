@@ -1,10 +1,12 @@
 import logging
 
 from pylons import request, response, tmpl_context as c
+from pylons.controllers.util import redirect
 from pylons.i18n import _
+from colander import Invalid
 
 from openspending import model
-from openspending.model import meta as db
+from openspending.model import Dataset, meta as db
 from openspending.plugins.core import PluginImplementations
 from openspending.plugins.interfaces import IDatasetController
 from openspending.lib.csvexport import write_csv
@@ -16,6 +18,7 @@ from openspending.ui.lib.browser import Browser
 from openspending.ui.lib.views import View, ViewState, handle_request
 from openspending.ui.lib.color import rgb_rainbow
 from openspending.validation.currency import CURRENCIES
+from openspending.validation.dataset import Dataset as DatasetSchema
 
 log = logging.getLogger(__name__)
 
@@ -39,13 +42,25 @@ class DatasetController(BaseController):
         else:
             return render('dataset/index.html')
 
-    def new(self):
+    def new(self, errors={}):
         c.currencies = [(k, v['name']) for k,v in CURRENCIES.items()]
         c.currencies = sorted(c.currencies, key=lambda (k,v): v)
-        return render('dataset/new.html')
+        return render('dataset/new.html', form_errors=errors,
+                form_fill=request.params if errors else None)
 
     def create(self):
-        pass
+        try:
+            schema = DatasetSchema()
+            data = schema.deserialize(request.params)
+            dataset = Dataset({'dataset': data})
+            dataset.private = True
+            db.session.add(dataset)
+            db.session.commit()
+            redirect(h.url_for(controller='dataset', action='view', 
+                               dataset=dataset.name))
+        except Invalid, i:
+            errors = i.asdict()
+            return self.new(errors)
 
     def view(self, dataset, format='html'):
         self._get_dataset(dataset)
