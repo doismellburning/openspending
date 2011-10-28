@@ -8,7 +8,7 @@ from colander import Invalid
 from openspending import model
 from openspending.model import Dataset, meta as db
 from openspending.lib.csvexport import write_csv
-from openspending.ui.lib.jsonp import to_jsonp
+from openspending.lib.jsonexport import to_jsonp
 from openspending.lib import json
 from openspending.ui.lib import helpers as h
 from openspending.ui.lib.base import BaseController, render
