@@ -34,13 +34,12 @@ def analyze_csv(url, sample=1000):
         headers, sample = sample[0], sample[1:]
         #values = frequent_values(sample)
         types = type_guess(sample[500:], types=LIMITED_TYPES)
-        mapping = {}
+        mapping, dimensions = {}, {}
         for header, type_ in zip(headers, types):
             type_ = repr(type_).lower()
             name = slugify(header.value).lower()
             meta = {
                 'label': header.value,
-                'column': header.value,
                 'datatype': type_
                 }
             if type_ in ['decimal', 'integer', 'float']:
@@ -51,9 +50,11 @@ def analyze_csv(url, sample=1000):
                 meta['datatype'] = 'date'
             else:
                 meta['type'] = 'attribute'
-            mapping[name] = meta
+            dimensions[name] = meta
+            mapping[name] = {'column': header.value}
         return {'columns': [h.value for h in headers], 
-                'mapping': mapping}
+                'mapping': mapping,
+                'dimensions': dimensions}
     except Exception, e:
         return {'error': unicode(e)}
 
