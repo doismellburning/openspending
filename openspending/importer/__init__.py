@@ -83,7 +83,8 @@ class BaseImporter(object):
             log.info('Imported %s lines' % self.row_number)
 
         try:
-            data = convert_types(self.dataset.mapping, line)
+            data = convert_types(self.dataset.data['mapping'],
+                    self.dataset.dimensions_model, line)
             if not self.dry_run:
                 self.dataset.load(data)
         except Invalid as invalid:

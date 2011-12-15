@@ -28,7 +28,7 @@ def load_fixture(name, manager=None):
     fh = open(fixture_path('%s.csv' % name), 'r')
     reader = csv.DictReader(fh)
     for row in reader:
-        entry = convert_types(data['mapping'], row)
+        entry = convert_types(data['dimensions'], data['mapping'], row)
         dataset.load(entry)
     fh.close()
     dataset.commit()

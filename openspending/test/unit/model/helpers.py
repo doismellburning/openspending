@@ -7,23 +7,29 @@ SIMPLE_MODEL = {
         'description': 'I\'m a banana!'
     },
     'mapping': {
+        'amount': {'column': 'amount'},
+        'time': {'column': 'year'},
+        'field': {'column': 'field'},
+        'to.name': {'column': 'to_name'},
+        'to.label': {'column': 'to_label'},
+        'function.name': {'column': 'func_name'},
+        'function.label': {'column': 'func_label'}
+    },
+    'dimensions': {
         'amount': {
             'type': 'value',
             'label': 'Amount',
-            'column': 'amount',
             'datatype': 'float'
             },
         'time': {
             'type': 'value',
             'label': 'Year',
-            'column': 'year',
             'datatype': 'date',
             'key': True
             },
         'field': {
             'type': 'value',
             'label': 'Field 1',
-            'column': 'field',
             'datatype': 'string'
             },
         'to': {
@@ -32,8 +38,8 @@ SIMPLE_MODEL = {
             'facet': True,
             'key': True,
             'attributes': {
-                'name': {'column': 'to_name', 'datatype': 'id'},
-                'label': {'column': 'to_label', 'datatype': 'string'}
+                'name': {'datatype': 'id'},
+                'label': {'datatype': 'string'}
                 }
             },
         'function': {
@@ -43,8 +49,8 @@ SIMPLE_MODEL = {
             'facet': False,
             'key': True,
             'attributes': {
-                'name': {'column': 'func_name', 'datatype': 'id'},
-                'label': {'column': 'func_label', 'datatype': 'string'}
+                'name': {'datatype': 'id'},
+                'label': {'datatype': 'string'}
                 }
             }
         }
@@ -65,7 +71,7 @@ def load_dataset(dataset):
     from openspending.validation.data import convert_types
     reader = csv.DictReader(StringIO(TEST_DATA))
     for row in reader:
-        row = convert_types(SIMPLE_MODEL['mapping'], row)
+        row = convert_types(SIMPLE_MODEL['dimensions'], SIMPLE_MODEL['mapping'], row)
         dataset.load(row)
 
 #def make_test_app(use_cookies=False):

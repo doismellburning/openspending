@@ -71,8 +71,8 @@ class Dataset(TableHandler, db.Model):
         return model
 
     @property
-    def mapping(self):
-        return self.data.get('mapping', {})
+    def dimensions_model(self):
+        return self.data.get('dimensions', {})
 
     @db.reconstructor
     def _load_model(self):
@@ -84,7 +84,7 @@ class Dataset(TableHandler, db.Model):
         """
         self.dimensions = []
         self.measures = []
-        for dim, data in self.mapping.items():
+        for dim, data in self.dimensions_model.items():
             if data.get('type') == 'measure' or dim == 'amount':
                 self.measures.append(Measure(self, dim, data))
                 continue

@@ -37,7 +37,7 @@ class Source(db.Model):
 
     @property
     def loadable(self):
-        if not len(self.dataset.mapping):
+        if not len(self.dataset.dimensions_model) and len(self.dataset.data['mapping']):
             return False
         if 'error' in self.analysis:
             return False

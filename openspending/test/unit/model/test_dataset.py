@@ -39,9 +39,7 @@ class TestDataset(DatabaseTestCase):
         assert isinstance(dim.column.type, UnicodeText), dim.column
         assert 'field'==dim.column.name, dim.column
         assert dim.name=='field', dim.name
-        assert dim.source_column==SIMPLE_MODEL['mapping']['field']['column'], \
-                dim.source_column
-        assert dim.label==SIMPLE_MODEL['mapping']['field']['label'], \
+        assert dim.label==SIMPLE_MODEL['dimensions']['field']['label'], \
                 dim.label
         assert dim.constant==None, dim.constant
         assert dim.default_value==None, dim.default_value
