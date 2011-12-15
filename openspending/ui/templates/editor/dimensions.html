@@ -92,7 +92,7 @@
 				<py:if test="len(c.errors.keys())">
                   <div class="alert-message block-message error">
 					<p>
-					  The dimensions mapping could not be saved as it 
+					  The dimensions model could not be saved as it 
 					  contains some errors:
 					</p>
 					<ul py:for="field, error in c.errors.items()">
@@ -101,10 +101,10 @@
                   </div>
 				</py:if>
 				<textarea id="fallback" class="xxlarge" rows="20"
-						  name="mapping">${c.fill['mapping']}</textarea>
+						  name="dimensions">${c.fill['dimensions']}</textarea>
 				<div id="frame">
-                  <div id="mapping" 
-					   style="height: 300px; width: 690px">${c.fill['mapping']}</div>
+                  <div id="dimensions" 
+					   style="height: 300px; width: 690px">${c.fill['dimensions']}</div>
 				</div>
               </fieldset>
               <div class="actions">
@@ -117,14 +117,14 @@
 			  <div class='forms'>
 				<form action='#'>
 
-				  <!-- Dimension mapping -->
+				  <!-- Dimension model -->
 				  <div class='formpart dimensions_widget' style='display: none'>
-					<h2>Dimension mapping</h2>
+					<h2>Dimension model</h2>
 					<p>
 					  The first and most important step in the creation of a model is
-					  the mapping of columns in the data file to "dimensions", the logical
-					  divisions of the dataset. The four required dimensions, <code>amount</code>,
-					  <code>time</code>, <code>from</code>, and <code>to</code> are laid
+					  the layout of "dimensions", the logical
+					  divisions of the dataset. The two required dimensions, <code>amount</code>,
+					  <code>time</code> are laid
 					  out below, and you can add your own dimensions using the links at
 					  the bottom of the page.
 					</p>
@@ -261,7 +261,7 @@
       jQuery(document).ready(function($) {
         $(fallback).hide();
         $("#frame").show();
-        var editor = ace.edit("mapping");
+        var editor = ace.edit("dimensions");
         _globalEditor = editor;
         var JSONMode = require("ace/mode/json").Mode;
         editor.getSession().setMode(new JSONMode());

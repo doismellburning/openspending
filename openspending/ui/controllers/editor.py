@@ -18,6 +18,7 @@ from openspending.reference.country import COUNTRIES
 from openspending.reference.language import LANGUAGES
 from openspending.validation.model.dataset import dataset_schema
 from openspending.validation.model.mapping import mapping_schema
+from openspending.validation.model.dimensions import dimensions_schema
 from openspending.validation.model.views import views_schema
 from openspending.validation.model.common import ValidationState
 
@@ -70,7 +71,7 @@ class EditorController(BaseController):
             errors = i.asdict()
         return self.core_edit(dataset, errors=errors)
 
-    def dimensions_edit(self, dataset, errors={}, mapping=None, 
+    def dimensions_edit(self, dataset, errors={}, dimensions=None, 
             format='html'):
         self._get_dataset(dataset)
         require.dataset.update(c.dataset)
@@ -79,10 +80,10 @@ class EditorController(BaseController):
         if c.source is None:
             abort(400, _("You cannot edit the dimensions model before "\
                           "defining a data source"))
-        mapping = mapping or c.dataset.data.get('mapping', {})
-        if not len(mapping) and c.source and 'mapping' in c.source.analysis:
-            mapping = c.source.analysis['mapping']
-        c.fill = {'mapping': json.dumps(mapping, indent=2)}
+        dimensions = dimensions or c.dataset.data.get('dimensions', {})
+        if not len(dimensions) and c.source and 'dimensions' in c.source.analysis:
+            dimensions = c.source.analysis['dimensions']
+        c.fill = {'dimensions': json.dumps(dimensions, indent=2)}
         c.errors = errors
         c.can_edit = not len(c.dataset)
         return render('editor/dimensions.html', form_fill=c.fill)
@@ -94,25 +95,25 @@ class EditorController(BaseController):
             abort(400, _("You cannot edit the dimensions model when " \
                     "data is loaded for the dataset."))
 
-        errors, mapping = {}, None
+        errors, dimensions = {}, None
         try:
-            mapping = json.loads(request.params.get('mapping'))
+            dimensions = json.loads(request.params.get('dimensions'))
             model = c.dataset.model
-            model['mapping'] = mapping
-            schema = mapping_schema(ValidationState(model))
-            c.dataset.data['mapping'] = schema.deserialize(mapping)
+            model['dimensions'] = dimensions
+            schema = dimensions_schema(ValidationState(model))
+            c.dataset.data['dimensions'] = schema.deserialize(dimensions)
             # erm...
             c.dataset.drop()
             c.dataset._load_model()
             c.dataset.generate()
             db.session.commit()
-            h.flash_success(_("The mapping has been updated."))
+            h.flash_success(_("The dimensions have been updated."))
         except (ValueError, TypeError, AttributeError):
-            abort(400, _("The mapping data could not be decoded as JSON!"))
+            abort(400, _("The dimensions data could not be decoded as JSON!"))
         except Invalid, i:
             errors = i.asdict()
         return self.dimensions_edit(dataset, errors=errors, 
-                mapping=mapping)
+                dimensions=dimensions)
     
     def views_edit(self, dataset, errors={}, views=None, 
             format='html'):
