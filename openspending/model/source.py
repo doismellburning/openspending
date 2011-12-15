@@ -36,8 +36,12 @@ class Source(db.Model):
         return self.url
 
     @property
+    def mapping(self):
+        return self.dataset.data.get('mapping', {})
+
+    @property
     def loadable(self):
-        if not len(self.dataset.dimensions_model) and len(self.dataset.data['mapping']):
+        if not len(self.dataset.dimensions_model) and len(self.mapping):
             return False
         if 'error' in self.analysis:
             return False
