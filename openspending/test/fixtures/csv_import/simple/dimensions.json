@@ -1,0 +1,43 @@
+{
+  "from": {
+    "attributes": {
+      "name": {
+        "datatype": "id"
+      },
+      "label": {
+        "datatype": "string"
+      }
+    },
+    "type": "entity",
+    "label": "Spender"
+  },
+  "to": {
+    "attributes": {
+      "name": {
+        "datatype": "id"
+      },
+      "label": {
+        "datatype": "string"
+      }
+    },
+    "type": "entity",
+    "label": "Recipient"
+  },
+  "amount": {
+    "label": "Amount",
+    "datatype": "float",
+    "type": "value"
+  },
+  "time": {
+    "label": "Time",
+    "datatype": "date",
+    "type": "value"
+  },
+  "entry_id": {
+    "label": "Entry ID",
+    "datatype": "string",
+    "type": "value",
+    "key": true
+  }
+}
+

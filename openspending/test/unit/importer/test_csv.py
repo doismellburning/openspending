@@ -27,9 +27,12 @@ def csvimport_fixture_file(name, path):
 def csvimport_fixture(name):
     model_fp = csvimport_fixture_file(name, 'model.json')
     mapping_fp = csvimport_fixture_file(name, 'mapping.json')
+    dimensions_fp = csvimport_fixture_file(name, 'dimensions.json')
     model = json.load(model_fp)
     if mapping_fp:
         model['mapping'] = json.load(mapping_fp)
+    if dimensions_fp:
+        model['dimensions'] = json.load(dimensions_fp)
     dataset = Dataset(model)
     dataset.generate()
     db.session.add(dataset)
