@@ -66,6 +66,7 @@ def make_map():
 
     map.connect('/api/rest/', controller='rest', action='index')
     map.connect('/api/2/aggregate', controller='api2', action='aggregate')
+    map.connect('/api/2/select', controller='api2', action='select')
 
     map.connect('/500', controller='error', action='render', code="500")
 

@@ -7,6 +7,7 @@ the table schema associated with the dataset. As such, it holds the key set
 of logic functions upon which all other queries and loading functions rely.
 """
 import math
+import logging
 from collections import defaultdict
 from datetime import datetime
 from itertools import count
@@ -20,6 +21,7 @@ from openspending.model.dimension import CompoundDimension, \
         AttributeDimension, DateDimension
 from openspending.model.dimension import Measure
 
+log = logging.getLogger(__name__)
 
 class Dataset(TableHandler, db.Model):
     """ The dataset is the core entity of any access to data. All
@@ -267,8 +269,184 @@ class Dataset(TableHandler, db.Model):
                         result[field][attr] = v
                 yield result
 
-    def aggregate(self, measure='amount', drilldowns=None, cuts=None, 
-            page=1, pagesize=10000, order=None):
+    def select(self, measure='amount', with_fields=None, cuts=None, slice=None,
+            page=1, pagesize=10000, order=None, aggregate=False):
+        """
+        See `aggregate` for detailed documentation
+
+        ``aggregate=True``
+        
+            Use with_fields as the dimensions to aggregate over. If
+            this is empty, aggregate over the entire dataset
+
+        ``aggregate=False``
+
+            Include dimensions named in with_fields in the result of
+            the query, along with the row id and amount
+        """
+        
+        cuts = cuts or []
+        with_fields = with_fields or []
+        order = order or []
+        joins = self.alias
+
+        fields = set()
+
+        # Magic aliases that can be used
+        labels = {
+            'year': {'join_table': 'time', 'field': self['time']['year'].column_alias.label('year')},
+            'month': {'join_table': 'time', 'field': self['time']['yearmonth'].column_alias.label('month')},
+            'id': {'join_table': None, 'field': self.alias.c.id.label("id")},
+            }
+
+        # Dimensions are used for grouping
+        dimensions = set(with_fields + [k for k,v in cuts] + [o[0] for o in order])
+
+        # Keep track of the things we might need to join in
+        fields_to_join = dimensions.copy()
+
+        # Put all elements of dimensions into group_by and fields,
+        # mangling data types as needed
+        group_by = []
+        for key in dimensions:
+            if key in labels:
+                column = labels[key]['field']
+                group_by.append(column)
+                fields.add(column)
+            else:
+                column = self.key(key)
+                if '.' in key or column.table == self.alias:
+                    fields.add(column)
+                    group_by.append(column)
+                else:
+                    fields.add(column.table)
+                    for col in column.table.columns:
+                        group_by.append(col)
+
+        conditions = db.and_()
+        # cut handling - simple where selection
+        filters = defaultdict(set)
+        for key, value in cuts:
+            if key in labels:
+                column = labels[key]['field']
+            else:
+                column = self.key(key)
+            filters[column].add(value)
+        for attr, values in filters.items():
+            conditions.append(db.or_(*[attr==v for v in values]))
+
+        # slice handling - generalised where selection
+        if slice is not None:
+            slice_disj = db.or_()
+            for conj in slice:
+                slice_conj = db.and_()
+                for key, op, value in conj:
+                    if key in labels:
+                        column = labels[key]['field']
+                    else:
+                        column = self.key(key)
+                        
+                    if op == ':':
+                        filter = column==value
+                    elif op == '!':
+                        filter = column!=value
+                    elif op == '>':
+                        filter = column>value
+                    elif op == '<':
+                        filter = column<value
+                    elif op == '>:':
+                        filter = column>=value
+                    elif op == '<:':
+                        filter = column<=value
+                    else:
+                        # Ignore gibberish
+                        continue
+
+                    # We already have the measure in there, possibly as a sum
+                    if key != measure:
+                        fields.add(column)
+                        fields_to_join.add(key)
+                    slice_conj.append(filter)
+                slice_disj.append(slice_conj)
+            conditions.append(slice_disj)
+
+        order_by = []
+        for key, direction in order:
+            if key in labels:
+                column = labels[key]['field']
+            else:
+                column = self.key(key)
+            order_by.append(column.desc() if direction else column.asc())
+
+        # Compute needed joins
+        for field in fields_to_join:
+            if field in labels:
+                table_name = labels[field]['join_table']
+            else:
+                table_name = str(field).split('.')[0]
+            if table_name is None:
+                continue
+            if table_name not in [c.table.name for c in joins.columns]:
+                joins = self[table_name].join(joins)
+
+        # Add the extra fields as needed (after computing joins, because these are a bit too magic)
+        if aggregate:
+            fields.add(db.func.sum(self.alias.c[measure]).label(measure))
+            fields.add(db.func.count(self.alias.c.id).label("entries"))
+        else:
+            fields.add(self.alias.c.id.label("id"))
+            fields.add(self.alias.c[measure].label(measure))
+            # For non-aggregated queries, don't do any grouping
+            group_by = None
+
+        query = db.select(list(fields), conditions, joins,
+                       order_by=order_by or [measure + ' desc'],
+                       group_by=group_by, use_labels=True)
+
+        summary = {measure: 0.0, 'num_entries': 0}
+        results = []
+        rp = self.bind.execute(query)
+        while True:
+            row = rp.fetchone()
+            if row is None:
+                break
+            result = {}
+            for key, value in row.items():
+                if key == measure:
+                    summary[measure] += value or 0
+                if key == 'entries':
+                    summary['num_entries'] += value or 0
+                if '_' in key:
+                    dimension, attribute = key.split('_', 1)
+                    dimension = dimension.replace(ALIAS_PLACEHOLDER, '_')
+                    if dimension == 'entry':
+                        result[attribute] = value
+                    else:
+                        if not dimension in result:
+                            result[dimension] = {}
+
+                            # TODO: backwards-compat?
+                            if isinstance(self[dimension], CompoundDimension):
+                                result[dimension]['taxonomy'] = \
+                                        self[dimension].taxonomy
+                        result[dimension][attribute] = value
+                else:
+                    if key == 'entries':
+                        key = 'num_entries'
+                    result[key] = value
+            results.append(result)
+        offset = ((page-1)*pagesize)
+
+        # do we really need all this:
+        summary['num_results'] = len(results)
+        summary['page'] = page
+        summary['pages'] = int(math.ceil(len(results)/float(pagesize)))
+        summary['pagesize'] = pagesize
+
+        return {'result': results[offset:offset+pagesize],
+                'summary': summary}
+
+    def aggregate(self, **kwargs):
         """ Query the dataset for a subset of cells based on cuts and 
         drilldowns. It returns a structure with a list of drilldown items 
         and a summary about the slice cutted by the query.
@@ -284,6 +462,20 @@ class Dataset(TableHandler, db.Model):
             a query where multible cuts for the same dimension are combined
             to an *OR* query and then the queries for the different
             dimensions are combined to an *AND* query.
+        ``slice``
+            Specification of a DNF expression to filter the
+            results. This is a list of lists of 3-tuples, where the
+            outer list represents an OR expression, the inner list
+            represents an AND expression, and each 3-tuple is of the
+            form ``(dimension, op, value)``. ``op`` may be any of:
+
+            - ``:`` equal
+            - ``!`` not equal
+            - ``>`` ``<`` greater/less
+            - ``>:`` ``<:`` greater/less or equal
+
+            If both ``cuts`` and ``slice`` are present, the result
+            will be all cells that match both filters
         ``page``
             Page the drilldown result and return page number *page*.
             type: `int`
@@ -320,105 +512,16 @@ class Dataset(TableHandler, db.Model):
                        "num_entries": 133612}}
 
         """
-        cuts = cuts or []
-        drilldowns = drilldowns or []
-        order = order or []
-        joins = self.alias
-        fields = [db.func.sum(self.alias.c[measure]).label(measure), 
-                  db.func.count(self.alias.c.id).label("entries")]
-        labels = {
-            'year': self['time']['year'].column_alias.label('year'),
-            'month': self['time']['yearmonth'].column_alias.label('month'),
-            }
-        dimensions = set(drilldowns + [k for k,v in cuts] + [o[0] for o in order])
-        for dimension in dimensions:
-            if dimension in labels:
-                _name = 'time'
-            else:
-                _name = dimension.split('.')[0]
-            if _name not in [c.table.name for c in joins.columns]:
-                joins = self[_name].join(joins)
-
-        group_by = []
-        for key in dimensions:
-            if key in labels:
-                column = labels[key]
-                group_by.append(column)
-                fields.append(column)
-            else:
-                column = self.key(key)
-                if '.' in key or column.table == self.alias:
-                    fields.append(column)
-                    group_by.append(column)
-                else:
-                    fields.append(column.table)
-                    for col in column.table.columns:
-                        group_by.append(col)
-
-        conditions = db.and_()
-        filters = defaultdict(set)
-        for key, value in cuts:
-            if key in labels:
-                column = labels[key]
-            else:
-                column = self.key(key)
-            filters[column].add(value)
-        for attr, values in filters.items():
-            conditions.append(db.or_(*[attr==v for v in values]))
-
-        order_by = []
-        for key, direction in order:
-            if key in labels:
-                column = labels[key]
-            else:
-                column = self.key(key)
-            order_by.append(column.desc() if direction else column.asc())
-
-        query = db.select(fields, conditions, joins,
-                       order_by=order_by or [measure + ' desc'],
-                       group_by=group_by, use_labels=True)
-        summary = {measure: 0.0, 'num_entries': 0}
-        drilldown = []
-        rp = self.bind.execute(query)
-        while True:
-            row = rp.fetchone()
-            if row is None:
-                break
-            result = {}
-            for key, value in row.items():
-                if key == measure:
-                    summary[measure] += value or 0
-                if key == 'entries':
-                    summary['num_entries'] += value or 0
-                if '_' in key:
-                    dimension, attribute = key.split('_', 1)
-                    dimension = dimension.replace(ALIAS_PLACEHOLDER, '_')
-                    if dimension == 'entry':
-                        result[attribute] = value
-                    else:
-                        if not dimension in result:
-                            result[dimension] = {}
-
-                            # TODO: backwards-compat?
-                            if isinstance(self[dimension], CompoundDimension):
-                                result[dimension]['taxonomy'] = \
-                                        self[dimension].taxonomy
-                        result[dimension][attribute] = value
-                else:
-                    if key == 'entries':
-                        key = 'num_entries'
-                    result[key] = value
-            drilldown.append(result)
-        offset = ((page-1)*pagesize)
-
-        # do we really need all this:
-        summary['num_drilldowns'] = len(drilldown)
-        summary['page'] = page
-        summary['pages'] = int(math.ceil(len(drilldown)/float(pagesize)))
-        summary['pagesize'] = pagesize
-
-        return {'drilldown': drilldown[offset:offset+pagesize],
-                'summary': summary}
+        kwargs.pop('aggregate', None)
+        with_fields = kwargs.pop('drilldowns', None)
+           
+        r = self.select(aggregate=True, with_fields=with_fields, **kwargs)
+        # Map output names
+        r['summary']['num_drilldowns'] = r['summary']['num_results']
+        r['drilldown'] = r['result']
+        del r['summary']['num_results']
+        del r['result']
+        return r
 
     def __repr__(self):
         return "<Dataset(%s:%s:%s)>" % (self.name, self.dimensions,

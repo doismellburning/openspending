@@ -8,9 +8,9 @@ from pylons import cache, config
 
 log = logging.getLogger(__name__)
 
-class AggregationCache(object):
+class QueryCache(object):
     """ A proxy object to run cached calls against the dataset 
-    aggregation function. This is neither a concern of the data 
+    select function. This is neither a concern of the data 
     model itself, nor should it be repeated at each location 
     where caching of aggreagtes should occur - thus it ends up 
     here. """
@@ -22,57 +22,74 @@ class AggregationCache(object):
                 not self.dataset.private
         self.cache = cache.get_cache('DSCACHE_' + dataset.name,
                                      type=type)
-
-    def aggregate(self, measure='amount', drilldowns=None, cuts=None,
-        page=1, pagesize=10000, order=None):
-        """ For call docs, see ``model.Dataset.aggregate``. """
+        
+    def select(self, measure='amount', with_fields=None, cuts=None, slice=None,
+        page=1, pagesize=10000, order=None, aggregate=False):
+        """ For call docs, see ``model.Dataset.select``. """
 
         if not self.cache_enabled:
             log.debug("Caching is disabled.")
-            return self.dataset.aggregate(measure=measure,
-                                          drilldowns=drilldowns,
-                                          cuts=cuts, page=page,
-                                          pagesize=pagesize,
-                                          order=order)
+            return self.dataset.select(measure=measure,
+                                       with_fields=with_fields,
+                                       cuts=cuts, slice=slice, page=page,
+                                       pagesize=pagesize,
+                                       order=order,
+                                       aggregate=aggregate)
 
         key_parts = {'m': measure,
-                     'd': sorted(drilldowns or []),
+                     'd': sorted(with_fields or []),
                      'c': sorted(cuts or []),
-                     'o': order}
+                     's': sorted(map(sorted, slice or [])),
+                     'o': order,
+                     'a': aggregate}
         key = hashlib.sha1(repr(key_parts)).hexdigest()
 
         if self.cache.has_key(key):
             log.debug("Cache hit: %s", key)
-            result = self.cache.get(key)
+            r = self.cache.get(key)
         else:
             log.debug("Generating: %s", key)
             # Note that we're not passing pagination options. Since
             # the computational effort of giving a page is the same
             # as returning all, we're taking the network hit and 
             # storing the full result set in all cases.
-            result = self.dataset.aggregate(measure=measure,
-                                            drilldowns=drilldowns,
-                                            cuts=cuts,
-                                            page=1,
-                                            pagesize=maxint,
-                                            order=order)
-            self.cache.put(key, result)
+            r = self.dataset.select(measure=measure,
+                                         with_fields=with_fields,
+                                         cuts=cuts,
+                                         slice=slice,
+                                         page=1,
+                                         pagesize=maxint,
+                                         order=order,
+                                         aggregate=aggregate)
+            self.cache.put(key, r)
 
         # Restore pagination by splicing the cached result.
         offset = ((page-1)*pagesize)
-        drilldown = result['drilldown']
-        result['summary']['cached'] = True
-        result['summary']['cache_key'] = key
-        result['summary']['num_drilldowns'] = len(drilldown)
-        result['summary']['page'] = page
-        result['summary']['pages'] = int(math.ceil(len(drilldown)/float(pagesize)))
-        result['summary']['pagesize'] = pagesize
-        result['drilldown'] = drilldown[offset:offset+pagesize]
-        return result
+        results = r['result']
+        r['summary']['cached'] = True
+        r['summary']['cache_key'] = key
+        r['summary']['num_results'] = len(results)
+        r['summary']['page'] = page
+        r['summary']['pages'] = int(math.ceil(len(results)/float(pagesize)))
+        r['summary']['pagesize'] = pagesize
+        r['result'] = results[offset:offset+pagesize]
+        return r
 
     def invalidate(self):
         """ Clear the cache. """
         self.cache.clear()
 
+class AggregationCache(QueryCache):
+    """ Compatibility with existing callers of aggregate """
 
+    def aggregate(self, **kwargs):
+        """ For call docs, see ``model.Dataset.aggregate``. """
 
+        kwargs['with_fields'] = kwargs.pop('drilldowns')
+
+        r = self.select(aggregate=True, **kwargs)
+        r['summary']['num_drilldowns'] = r['summary']['num_results']
+        r['drilldown'] = r['result']
+        del r['summary']['num_results']
+        del r['result']
+        return r

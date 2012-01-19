@@ -1,4 +1,5 @@
 import logging
+import re
 
 from pylons import request, response
 from pylons.controllers.util import etag_cache
@@ -6,21 +7,37 @@ from pylons.controllers.util import etag_cache
 from openspending import model
 from openspending.lib.jsonexport import jsonpify
 from openspending.ui.lib.base import BaseController, require
-from openspending.ui.lib.cache import AggregationCache
+from openspending.ui.lib.cache import QueryCache
 
 log = logging.getLogger(__name__)
 
 class Api2Controller(BaseController):
 
     @jsonpify
+    def select(self):
+        return self._select()
+
+    @jsonpify
     def aggregate(self):
+        r = self._select(aggregate=True)
+        r['summary']['num_drilldowns'] = r['summary']['num_results']
+        r['drilldown'] = r['result']
+        del r['summary']['num_results']
+        del r['result']
+        return r
+
+    def _select(self, aggregate=False):
         errors = []
         params = request.params
 
         # get and check parameters
         dataset = self._dataset(params, errors)
-        drilldowns = self._drilldowns(params, errors)
+        if aggregate:
+            with_fields = self._drilldowns(params, errors)
+        else:
+            with_fields = self._fields(params, errors)
         cuts = self._cuts(params, errors)
+        slice = self._slice(params, errors)
         order = self._order(params, errors)
         measure = self._measure(params, dataset, errors)
         page = self._to_int('page', params.get('page', 1), errors)
@@ -30,11 +47,12 @@ class Api2Controller(BaseController):
             return {'errors': errors}
 
         try:
-            cache = AggregationCache(dataset)
-            result = cache.aggregate(measure=measure, 
-                                     drilldowns=drilldowns, 
-                                     cuts=cuts, page=page, 
-                                     pagesize=pagesize, order=order)
+            cache = QueryCache(dataset)
+            result = cache.select(measure=measure, 
+                                  with_fields=with_fields,
+                                  cuts=cuts, slice=slice, page=page, 
+                                  pagesize=pagesize, order=order,
+                                  aggregate=aggregate)
 
             if cache.cache_enabled and 'cache_key' in result['summary']:
                 if 'Pragma' in response.headers:
@@ -72,6 +90,12 @@ class Api2Controller(BaseController):
             return []
         return drilldown_param.split('|')
 
+    def _fields(self, params, errors):
+        fields_param = params.get('fields', None)
+        if fields_param is None:
+            return []
+        return fields_param.split('|')
+
     def _cuts(self, params, errors):
         cut_param = params.get('cut', None)
 
@@ -96,6 +120,32 @@ class Api2Controller(BaseController):
                 #except:
                 #    pass
                 result.append((dimension, value))
+        return result
+
+    slice_term_pattern = re.compile(r'^(.*?)(:|!|<|>|<:|>:)(.*)$')
+
+    def _slice(self, params, errors):
+        slice_param = params.get('slice', None)
+
+        if slice_param is None:
+            return None
+
+        conjs = slice_param.split('|')
+        result = []
+        for conj in conjs:
+            terms = conj.split('*')
+            conj_result = []
+            for term in terms:
+                m = Api2Controller.slice_term_pattern.match(term)
+                if m is None:
+                    errors.append('Wrong format for "slice". '
+                                  'We could not understand the term "%s" '
+                                  'in "%s"' %
+                                  (term, slice_param)
+                                  )
+                    return
+                conj_result.append(m.groups())
+            result.append(conj_result)
         return result
 
     def _order(self, params, errors):
