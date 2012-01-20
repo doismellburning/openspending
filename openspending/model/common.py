@@ -1,6 +1,8 @@
 #coding: utf-8
 from json import dumps, loads
 from sqlalchemy.types import Text, MutableType, TypeDecorator
+from sqlalchemy.sql.expression import UpdateBase, ClauseElement
+from sqlalchemy.ext import compiler
 
 from openspending.model import meta as db 
 
@@ -81,3 +83,14 @@ class DatasetFacetMixin(object):
             order_by=db.func.count(cls.dataset_id).desc())
         return db.session.bind.execute(q).fetchall()
 
+class InsertFromSelect(UpdateBase, ClauseElement):
+    def __init__(self, table, select):
+        self.table = table
+        self.select = select
+
+@compiler.compiles(InsertFromSelect)
+def visit_insert_from_select(element, compiler, **kw):
+    return "INSERT INTO %s (%s)" % (
+        compiler.process(element.table, asfrom=True),
+        compiler.process(element.select)
+    )

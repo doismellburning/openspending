@@ -15,11 +15,12 @@ from itertools import count
 from openspending.model import meta as db
 from openspending.lib.util import hash_values
 
-from openspending.model.common import TableHandler, JSONType, \
+from openspending.model.common import TableHandler, JSONType, InsertFromSelect, \
         ALIAS_PLACEHOLDER
 from openspending.model.dimension import CompoundDimension, \
         AttributeDimension, DateDimension
 from openspending.model.dimension import Measure
+from openspending.model.entry_collection import EntryCollections
 
 log = logging.getLogger(__name__)
 
@@ -135,6 +136,18 @@ class Dataset(TableHandler, db.Model):
             field.init(self.meta, self.table)
         self.alias = self.table.alias('entry')
 
+        self.entry_collections = EntryCollections(self.name)
+        self.entry_collections.init(self.meta)
+
+        # This is a little different to what TableHandler does...
+        # TODO: merge back into TableHandler somehow
+        self.entry_collection_entries_table = db.Table(self.name + '__entry_collection_entries',
+                                                       self.meta,
+                                                       db.Column('entry_id', self.table.c.id.type, db.ForeignKey(self.table.c.id), primary_key=True),
+                                                       db.Column('collection_id', self.entry_collections.table.c.id.type,
+                                                                 db.ForeignKey(self.entry_collections.table.c.id), primary_key=True),
+                                                       )
+
     def generate(self):
         """ Create the tables and columns necessary for this dataset
         to keep data.
@@ -142,6 +155,9 @@ class Dataset(TableHandler, db.Model):
         for field in self.fields:
             field.generate(self.meta, self.table)
         self._generate_table()
+        self.entry_collections.generate()
+        if not db.engine.has_table(self.entry_collection_entries_table.name):
+            self.entry_collection_entries_table.create(db.engine)
         self._is_generated = True
 
     @property
@@ -187,6 +203,8 @@ class Dataset(TableHandler, db.Model):
         """
         for dimension in self.dimensions:
             dimension.flush(self.bind)
+        self.entry_collections.flush()
+        self.bind.execute(self.entry_collection_entries_table.delete())
         self._flush(self.bind)
 
     def drop(self):
@@ -195,6 +213,11 @@ class Dataset(TableHandler, db.Model):
         """
         for dimension in self.dimensions:
             dimension.drop(self.bind)
+
+        if db.engine.has_table(self.entry_collection_entries_table.name):
+            self.entry_collection_entries_table.drop()
+        self.entry_collections.drop()
+            
         self._drop(self.bind)
 
     def key(self, key):
@@ -269,8 +292,32 @@ class Dataset(TableHandler, db.Model):
                         result[field][attr] = v
                 yield result
 
+    def make_collection(self, name):
+        '''XXX: temporary hack until we have a real entry collection class'''
+        id = self.entry_collections.create(self.bind, {'name': name})
+        return id
+
+    def find_collection(self, name):
+        '''XXX: temporary hack until we have a real entry collection class'''
+        c = self.entry_collections.by_name(self.bind, name)
+        return c['id']
+
+    def collect(self, collection, cuts=None, slice=None, from_collection=None):
+        """API wrapper for the parameters that are meaningful when populating a collection"""
+        return self.select(cuts=cuts,
+                           slice=slice,
+                           from_collection=from_collection,
+                           into_collection=collection)
+
+    def _collection_entries_query(self, collection_id):
+        # Construct a select query that returns all the entry ids in a
+        # collection - convenient for constructing complex queries
+        return db.select([self.entry_collection_entries_table.c.entry_id.label('id')],
+                         self.entry_collection_entries_table.c.collection_id == collection_id)
+
     def select(self, measure='amount', with_fields=None, cuts=None, slice=None,
-            page=1, pagesize=10000, order=None, aggregate=False):
+               from_collection=None, into_collection=None,
+               page=1, pagesize=10000, order=None, aggregate=False):
         """
         See `aggregate` for detailed documentation
 
@@ -283,6 +330,13 @@ class Dataset(TableHandler, db.Model):
 
             Include dimensions named in with_fields in the result of
             the query, along with the row id and amount
+
+        ``into_collection``
+
+            Instead of returning a slice of the results, they are
+            inserted into the given collection. ``with_fields`` and
+            ``aggregate`` are ignored when this options is specified.
+
         """
         
         cuts = cuts or []
@@ -370,6 +424,11 @@ class Dataset(TableHandler, db.Model):
                 slice_disj.append(slice_conj)
             conditions.append(slice_disj)
 
+        # from_collection handling
+        if from_collection is not None:
+            collection_query = self._collection_entries_query(from_collection)
+            conditions.append(self.alias.c.id.in_(collection_query))
+
         order_by = []
         for key, direction in order:
             if key in labels:
@@ -379,18 +438,23 @@ class Dataset(TableHandler, db.Model):
             order_by.append(column.desc() if direction else column.asc())
 
         # Compute needed joins
-        for field in fields_to_join:
-            if field in labels:
-                table_name = labels[field]['join_table']
-            else:
-                table_name = str(field).split('.')[0]
-            if table_name is None:
-                continue
-            if table_name not in [c.table.name for c in joins.columns]:
-                joins = self[table_name].join(joins)
+        if into_collection is None:
+            for field in fields_to_join:
+                if field in labels:
+                    table_name = labels[field]['join_table']
+                else:
+                    table_name = str(field).split('.')[0]
+                if table_name is None:
+                    continue
+                if table_name not in [c.table.name for c in joins.columns]:
+                    joins = self[table_name].join(joins)
 
         # Add the extra fields as needed (after computing joins, because these are a bit too magic)
-        if aggregate:
+        if into_collection is not None:
+            fields = [self.alias.c.id.label('entry_id'), db.literal(into_collection).label('collection_id')]
+            group_by = None
+            order_by = [fields[0].asc()]
+        elif aggregate:
             fields.add(db.func.sum(self.alias.c[measure]).label(measure))
             fields.add(db.func.count(self.alias.c.id).label("entries"))
         else:
@@ -402,6 +466,12 @@ class Dataset(TableHandler, db.Model):
         query = db.select(list(fields), conditions, joins,
                        order_by=order_by or [measure + ' desc'],
                        group_by=group_by, use_labels=True)
+
+        if into_collection is not None:
+            query = InsertFromSelect(self.entry_collection_entries_table, query)
+            rs = self.bind.execute(query)
+            summary = {'num_results': rs.rowcount}
+            return {'summary': summary}
 
         summary = {measure: 0.0, 'num_entries': 0}
         results = []

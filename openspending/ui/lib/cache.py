@@ -24,20 +24,24 @@ class QueryCache(object):
                                      type=type)
         
     def select(self, measure='amount', with_fields=None, cuts=None, slice=None,
-        page=1, pagesize=10000, order=None, aggregate=False):
+               from_collection=None,
+               page=1, pagesize=10000, order=None, aggregate=False):
         """ For call docs, see ``model.Dataset.select``. """
 
         if not self.cache_enabled:
             log.debug("Caching is disabled.")
             return self.dataset.select(measure=measure,
                                        with_fields=with_fields,
-                                       cuts=cuts, slice=slice, page=page,
+                                       cuts=cuts, slice=slice,
+                                       from_collection=from_collection,
+                                       page=page,
                                        pagesize=pagesize,
                                        order=order,
                                        aggregate=aggregate)
 
         key_parts = {'m': measure,
                      'd': sorted(with_fields or []),
+                     'f': from_collection,
                      'c': sorted(cuts or []),
                      's': sorted(map(sorted, slice or [])),
                      'o': order,
@@ -54,13 +58,14 @@ class QueryCache(object):
             # as returning all, we're taking the network hit and 
             # storing the full result set in all cases.
             r = self.dataset.select(measure=measure,
-                                         with_fields=with_fields,
-                                         cuts=cuts,
-                                         slice=slice,
-                                         page=1,
-                                         pagesize=maxint,
-                                         order=order,
-                                         aggregate=aggregate)
+                                    with_fields=with_fields,
+                                    cuts=cuts,
+                                    slice=slice,
+                                    from_collection=from_collection,
+                                    page=1,
+                                    pagesize=maxint,
+                                    order=order,
+                                    aggregate=aggregate)
             self.cache.put(key, r)
 
         # Restore pagination by splicing the cached result.

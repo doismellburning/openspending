@@ -38,6 +38,7 @@ class Api2Controller(BaseController):
             with_fields = self._fields(params, errors)
         cuts = self._cuts(params, errors)
         slice = self._slice(params, errors)
+        collection = self._from_collection(params, dataset, errors)
         order = self._order(params, errors)
         measure = self._measure(params, dataset, errors)
         page = self._to_int('page', params.get('page', 1), errors)
@@ -50,9 +51,10 @@ class Api2Controller(BaseController):
             cache = QueryCache(dataset)
             result = cache.select(measure=measure, 
                                   with_fields=with_fields,
-                                  cuts=cuts, slice=slice, page=page, 
-                                  pagesize=pagesize, order=order,
-                                  aggregate=aggregate)
+                                  cuts=cuts, slice=slice,
+                                  from_collection=collection,
+                                  page=page, pagesize=pagesize,
+                                  order=order, aggregate=aggregate)
 
             if cache.cache_enabled and 'cache_key' in result['summary']:
                 if 'Pragma' in response.headers:
@@ -63,6 +65,30 @@ class Api2Controller(BaseController):
         except (KeyError, ValueError) as ve:
             log.exception(ve)
             return {'errors': ['Invalid aggregation query: %r' % ve]}
+
+        return result
+
+    @jsonpify
+    def collect(self):
+        errors = []
+        params = request.params
+
+        # get and check parameters
+        dataset = self._dataset(params, errors)
+        cuts = self._cuts(params, errors)
+        slice = self._slice(params, errors)
+        collection = self._to_collection(params, dataset, errors)
+
+        if errors:
+            return {'errors': errors}
+
+        try:
+            collection_id = dataset.make_collection(collection)
+            result = dataset.collect(collection_id, cuts=cuts, slice=slice)
+
+        except (KeyError, ValueError) as ve:
+            log.exception(ve)
+            return {'errors': ['Invalid query: %r' % ve]}
 
         return result
 
@@ -83,6 +109,20 @@ class Api2Controller(BaseController):
             if measure.name == name:
                 return name
         errors.append('no measure with name "%s"' % name)
+
+    def _from_collection(self, params, dataset, errors):
+        if dataset is None:
+            return
+        name = params.get('from_collection')
+        collection = dataset.find_collection(name)
+        return collection
+
+    def _to_collection(self, params, dataset, errors):
+        if dataset is None:
+            return
+        name = params.get('to_collection')
+        # TODO: Validate the name / fetch the collection object here - once we have that stuff
+        return name
 
     def _drilldowns(self, params, errors):
         drilldown_param = params.get('drilldown', None)

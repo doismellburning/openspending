@@ -12,6 +12,7 @@ from openspending.model.account import Account
 from openspending.model.source import Source
 from openspending.model.run import Run
 from openspending.model.log_record import LogRecord
+from openspending.model.entry_collection import EntryCollections
 
 # shut up useless SA warning:
 import warnings
