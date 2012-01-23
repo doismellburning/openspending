@@ -83,8 +83,8 @@ class Api2Controller(BaseController):
             return {'errors': errors}
 
         try:
-            collection_id = dataset.make_collection(collection)
             result = dataset.collect(collection_id, cuts=cuts, slice=slice)
+            db.session.commit()
 
         except (KeyError, ValueError) as ve:
             log.exception(ve)
@@ -114,15 +114,23 @@ class Api2Controller(BaseController):
         if dataset is None:
             return
         name = params.get('from_collection')
-        collection = dataset.find_collection(name)
+        collection = dataset.entry_collection.by_name(name)
         return collection
 
     def _to_collection(self, params, dataset, errors):
         if dataset is None:
             return
         name = params.get('to_collection')
-        # TODO: Validate the name / fetch the collection object here - once we have that stuff
-        return name
+
+        if db.session.query().filter(dataset.entry_collection.name == name).count() > 0:
+            # This could be permitted - there's no underlying issue
+            # with appending to a collection - but let's leave it out
+            # until we think it's a good idea
+            errors.append('collection with name "%s" already exists' % name)
+        else:
+            collection = dataset.entry_collection(name)
+            db.session.add(collection)
+            return collection
 
     def _drilldowns(self, params, errors):
         drilldown_param = params.get('drilldown', None)

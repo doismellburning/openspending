@@ -90,7 +90,7 @@ class InsertFromSelect(UpdateBase, ClauseElement):
 
 @compiler.compiles(InsertFromSelect)
 def visit_insert_from_select(element, compiler, **kw):
-    return "INSERT INTO %s (%s)" % (
+    return "INSERT INTO %s %s" % (
         compiler.process(element.table, asfrom=True),
         compiler.process(element.select)
     )

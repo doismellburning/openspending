@@ -7,10 +7,11 @@ from sqlalchemy import or_, and_
 from sqlalchemy.orm import reconstructor, aliased
 
 from sqlalchemy import orm
-from sqlalchemy import func, select, literal
+from sqlalchemy import func, select, literal, delete
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.declarative import declared_attr
 
 
 # SQLAlchemy database engine.  Updated by model.init_model()

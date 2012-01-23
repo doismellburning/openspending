@@ -97,11 +97,15 @@ class TestDatasetLoad(DatabaseTestCase):
     def test_drop(self):
         tn = self.engine.table_names()
         assert 'test__entry' in tn, tn
+        assert 'test__entry_collection' in tn, tn
+        assert 'test__entry_collection_entry' in tn, tn
         assert 'test__to' in tn, tn
         assert 'test__function' in tn, tn
         self.ds.drop()
         tn = self.engine.table_names()
         assert 'test__entry' not in tn, tn
+        assert 'test__entry_collection' not in tn, tn
+        assert 'test__entry_collection_entry' not in tn, tn
         assert 'test__to' not in tn, tn
         assert 'test__function' not in tn, tn
 
@@ -161,3 +165,47 @@ class TestDatasetLoad(DatabaseTestCase):
         assert isinstance(row['field'], unicode), row
         assert isinstance(row['function'], dict), row
         assert isinstance(row['to'], dict), row
+
+    def test_select(self):
+        load_dataset(self.ds)
+        res = self.ds.select(slice=[[('amount', '>', '200'), ('field', ':', 'foo')], [('year', ':', '2009'), ('to.name', '!', 'acorp')]])
+        assert res['summary']['num_results'] == 4, res
+        assert res['summary']['amount'] == 1590, res
+        assert len(res['result']) == 4, res
+        for r in res['result']:
+            assert r.has_key('id'), r
+            assert r.has_key('amount'), r
+            assert r.has_key('field'), r
+            assert r.has_key('year'), r
+            assert r.has_key('to'), r
+            assert r['to'].has_key('name'), r
+            assert (r['amount'] > 200 and r['field'] == 'foo') or (r['year'] == '2009' and r['to']['name'] != 'acorp'), r
+
+    def test_collect(self):
+        load_dataset(self.ds)
+        coll1 = self.ds.entry_collection('c1')
+        db.session.add(coll1)
+        res = self.ds.collect(coll1, slice=[[('amount', '>', '350')]])
+        assert res['summary']['num_results'] == 3, res
+        assert not res.has_key('result'), res
+
+        res = self.ds.select(from_collection=coll1)
+        assert res['summary']['num_results'] == 3, res
+        assert res['summary']['amount'] == 2000, res
+        assert res['result'][0]['amount'] == 900, res
+        assert res['result'][1]['amount'] == 600, res
+        assert res['result'][2]['amount'] == 500, res
+
+        res = self.ds.select(from_collection=coll1, slice=[[('to.name', ':', 'acorp')]])
+        assert res['summary']['num_results'] == 2, res
+
+        coll2 = self.ds.entry_collection('c2')
+        db.session.add(coll2)
+        res = self.ds.collect(coll2, from_collection=coll1, slice=[[('to.name', ':', 'acorp')]])
+        #assert res['summary']['num_results'] == 2, res
+
+        res = self.ds.select(from_collection=coll2, with_fields=['to'])
+        assert res['summary']['num_results'] == 2, res
+        assert res['summary']['amount'] == 1400, res
+        assert res['result'][0]['amount'] == 900, res
+        assert res['result'][1]['amount'] == 500, res
