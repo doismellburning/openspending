@@ -3,7 +3,7 @@
 from sqlalchemy import MetaData
 from sqlalchemy import Table, Column, ForeignKey, Integer, Boolean
 from sqlalchemy import Unicode, UnicodeText, Float, DateTime
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, not_
 from sqlalchemy.orm import reconstructor, aliased
 
 from sqlalchemy import orm

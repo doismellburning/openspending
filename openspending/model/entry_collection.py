@@ -39,8 +39,12 @@ class BaseEntryCollectionEntry(object):
 
     @db.declared_attr
     def collection(cls):
-        return db.relationship(cls.entry_collection_class, backref='entries')
-    
+        return db.relationship(cls.entry_collection_class, backref='entries', cascade='all')
+
+    def __init__(self, collection, id):
+        self.collection_id = collection.id
+        self.entry_id = id
+
     def __str__(self):
         return "<EntryCollectionEntry(%s, %s)>" % (self.dataset_name, self.collection.name, self.entry_id)
 

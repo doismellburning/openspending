@@ -285,6 +285,23 @@ class Dataset(TableHandler, db.Model):
                         result[field][attr] = v
                 yield result
 
+    # Helper methods for basic collection CRUD
+    
+    def add_to_collection(self, collection, entry_id):
+        x = self.entry_collection_entry(collection, entry_id)
+        db.session.add(x)
+        return x
+
+    def find_in_collection(self, collection, entry_id):
+        return db.query(self.entry_collection_entry).\
+               filter(self.entry_collection_entry.collection_id == collection.id).\
+               filter(self.entry_collection_entry.entry_id == entry_id).\
+               first()
+
+    def remove_from_collection(self, collection, entry_id):
+        x = self.find_in_collection(collection, entry_id)
+        db.session.delete(x)
+
     def collect(self, collection, cuts=None, slice=None, from_collection=None):
         """API wrapper for the parameters that are meaningful when populating a collection"""
         return self.select(cuts=cuts,
@@ -453,6 +470,11 @@ class Dataset(TableHandler, db.Model):
                        group_by=group_by, use_labels=True)
 
         if into_collection is not None:
+            # Remove all entries that are already in the collection
+            collection_query = self._collection_entries_query(into_collection)
+            conditions.append(db.not_(self.alias.c.id.in_(collection_query)))
+
+            # Insert the result set into the collection
             query = InsertFromSelect(self.entry_collection_entry.__table__, query)
             rs = self.bind.execute(query)
             summary = {'num_results': rs.rowcount}
