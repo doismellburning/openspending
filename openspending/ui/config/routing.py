@@ -67,7 +67,7 @@ def make_map():
     map.connect('/api/rest/', controller='rest', action='index')
     map.connect('/api/2/aggregate', controller='api2', action='aggregate')
     map.connect('/api/2/select', controller='api2', action='select')
-    map.connect('/api/2/collect', controller='api2', action='collect', conditions=dict(method=['GET', 'POST']))
+    map.connect('/api/2/collect', controller='api2', action='collect', conditions=dict(method=['POST']))
 
     map.connect('/500', controller='error', action='render', code="500")
 
@@ -119,10 +119,19 @@ def make_map():
     map.connect('/{dataset}/entries.{format}', controller='entry',
             action='index')
     map.connect('/{dataset}/entries', controller='entry', action='index')
+    map.connect('/{dataset}/entries/collect', controller='entry', action='collect_list',
+                conditions=dict(method=['POST']))
     map.connect('/{dataset}/entries/{id}.{format}', controller='entry', action='view')
     map.connect('/{dataset}/entries/{id}', controller='entry', action='view')
+    map.connect('/{dataset}/entries/{id}/collect', controller='entry', action='collect',
+                conditions=dict(method=['POST']))
     map.connect('/{dataset}/entries/{id}/{action}', controller='entry')
     
+    map.connect('/{dataset}/collections', controller='collections', action='create',
+                conditions=dict(method=['POST']))
+    map.connect('/{dataset}/collections', controller='collections', action='index')
+    map.connect('/{dataset}/collections/{name}', controller='collections', action='view')
+
     map.connect('/{dataset}/dimensions.{format}',
                 controller='dimension', action='index')
     map.connect('/{dataset}/dimensions',

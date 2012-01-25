@@ -17,6 +17,7 @@ from openspending.auth import require
 import openspending.auth as can
 from openspending import model
 from openspending.ui import i18n
+from openspending.ui.lib import helpers as h
 from openspending.plugins.core import PluginImplementations
 from openspending.plugins.interfaces import IGenshiStreamFilter, IRequest
 
@@ -146,6 +147,49 @@ class BaseController(WSGIController):
         if c.dataset is None:
             abort(404, _('Sorry, there is no dataset named %r') % dataset)
         require.dataset.read(c.dataset)
+
+    def _get_collections(self):
+        c.current_collection = None
+        c.collections = c.dataset.entry_collection.all()
+        try:
+            c.current_collection = c.dataset.entry_collection.by_id(session['current_collection'])
+        except Exception:
+            # Not worried if that fails, the default is an acceptable fallback
+            log.debug('Failed to get current collection', exc_info=True)
+            pass        
+
+    def _get_collection_for_add(self):
+        collection_name = request.params.get('collection', None)
+        if collection_name == '-- New --':
+            return render('collection/new.html')
+
+        c.collection = c.dataset.entry_collection.by_name(collection_name)
+        session['current_collection'] = c.collection.id
+        session.save()
+
+        return
+
+    def _add_to_collection(self):
+        count = 0
+        for entry in c.entry_list:
+            if entry is not None and entry != '':
+                if c.collection.add_entry(entry):
+                    count = count + 1
+
+        # Generate the most appropriate status message for the user
+        if len(c.entry_list) == 1:
+            if count == 1:
+                h.flash_success(_("Entry added to collection %s.") % c.collection.name)
+            else:
+                h.flash_notice(_("Entry is already in collection %s.") % c.collection.name)
+        else:
+            if count == 0:
+                h.flash_notice(_("All entries are already in collection %s.") % c.collection.name)
+            elif count == len(c.entry_list):
+                h.flash_success(_("Added %d entries to collection %s.") % (count, c.collection.name))
+            else:
+                h.flash_success(_("Added %d new entries to collection %s. "
+                                  "The remaning %d entries were already present.") % (count, c.collection.name, len(c.entry_list) - count))
 
     def _get_page(self, param='page'):
         try:

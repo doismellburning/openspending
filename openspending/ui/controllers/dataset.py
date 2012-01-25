@@ -118,6 +118,7 @@ class DatasetController(BaseController):
 
     def explorer(self, dataset):
         self._get_dataset(dataset)
+        self._get_collections()
         c.dataset_name = c.dataset.name
         return render('dataset/explorer.html')
 

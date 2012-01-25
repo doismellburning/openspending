@@ -55,10 +55,17 @@
   </div>
 </div>
 
+<form method="POST" action="${collect_url()}">
+
+<py:if test="defined('collect_url')">
+  ${collection_adder('selected entries')}
+</py:if>
+
 <div class="row">
   <div class="span12">
     <xi:include href="_timegraph.html" />
     ${entries_page(c.dataset, c.browser.page)}
+<!-- templates/_browser.html -->
   </div>
   <div class="span4">
     <py:for each="facet in c.browser.facets"
@@ -97,6 +104,8 @@
     </py:for>
   </div>
 </div>
+
+</form>
 
 </html>
 

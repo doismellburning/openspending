@@ -1,7 +1,7 @@
 import logging
 
-from pylons import request, response, tmpl_context as c
-from pylons.controllers.util import abort
+from pylons import request, response, tmpl_context as c, session
+from pylons.controllers.util import abort, redirect
 from pylons.i18n import _
 
 from openspending.plugins.core import PluginImplementations
@@ -13,6 +13,8 @@ from openspending.lib.csvexport import write_csv
 from openspending.lib.jsonexport import to_jsonp
 from openspending.ui.lib import helpers as h
 
+from openspending.model import meta as db
+
 log = logging.getLogger(__name__)
 
 class EntryController(BaseController):
@@ -21,6 +23,7 @@ class EntryController(BaseController):
     
     def index(self, dataset, format='html'):
         self._get_dataset(dataset)
+        self._get_collections()
         handle_request(request, c, c.dataset)
         url = h.url_for(controller='entry', action='index',
                     dataset=c.dataset.name)
@@ -36,6 +39,7 @@ class EntryController(BaseController):
 
     def view(self, dataset, id, format='html'):
         self._get_dataset(dataset)
+        self._get_collections()
         entries = list(c.dataset.entries(c.dataset.alias.c.id==id))
         if not len(entries) == 1:
             abort(404, _('Sorry, there is no entry %r') % id)
@@ -72,3 +76,32 @@ class EntryController(BaseController):
         else:
             return render('entry/view.html')
 
+    def collect(self, dataset, id):
+        self._get_dataset(dataset)
+
+        c.entry_list = [id]
+        c.return_url = request.params['return_url']
+
+        r = self._get_collection_for_add()
+        if r is not None:
+            return r
+
+        self._add_to_collection()
+        db.session.commit()
+
+        redirect(c.return_url)
+
+    def collect_list(self, dataset):
+        self._get_dataset(dataset)
+
+        c.entry_list = request.params.getall('entry_select')
+        c.return_url = request.params['return_url']
+
+        r = self._get_collection_for_add()
+        if r is not None:
+            return r
+
+        self._add_to_collection()
+        db.session.commit()
+
+        redirect(c.return_url)

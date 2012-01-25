@@ -1,3 +1,5 @@
+import colander
+
 from openspending.model import meta as db
 from datetime import datetime
 from openspending.model.common import TableHandler
@@ -11,11 +13,38 @@ class BaseEntryCollection(object):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     @classmethod
+    def by_id(cls, id):
+        return db.session.query(cls).filter_by(id=id).first()
+
+    @classmethod
     def by_name(cls, name):
         return db.session.query(cls).filter_by(name=name).first()
 
+    @classmethod
+    def all(cls):
+        return db.session.query(cls).all()
+
+    def add_entry(self, entry_id):
+        if self.find_entry(entry_id) is not None:
+            return None
+        x = self.entry_collection_entry(self, entry_id)
+        db.session.add(x)
+        return x
+
+    def find_entry(self, entry_id):
+        return db.session.query(self.entry_collection_entry).\
+               filter(self.entry_collection_entry.collection_id == self.id).\
+               filter(self.entry_collection_entry.entry_id == entry_id).\
+               first()
+
+    def remove_from_collection(self, entry_id):
+        x = self.find_entry(entry_id)
+        db.session.delete(x)
+
     def __init__(self, name):
+        assert name != ''
         self.name = name
+        self.label = name
 
     def __str__(self):
         return "<EntryCollection(%s, %s)>" % (self.dataset_name, self.name)
@@ -71,9 +100,23 @@ def make_entry_collection_entry_class(dataset_name, declarative, entry_collectio
 
     classname = 'EntryCollectionEntry_' + dataset_name
 
-    return type(classname.encode('utf-8'), (BaseEntryCollectionEntry, declarative), fields)
+    cls = type(classname.encode('utf-8'), (BaseEntryCollectionEntry, declarative), fields)
+    entry_collection_class.entry_collection_entry = cls
+    return cls
 
 def make_entry_collection_classes(dataset_name, declarative, entry_table):
     entry_collection_class = make_entry_collection_class(dataset_name, declarative)
     entry_collection_entries_class = make_entry_collection_entry_class(dataset_name, declarative, entry_collection_class, entry_table)
     return entry_collection_class, entry_collection_entries_class
+
+class EntryCollectionCreate(colander.MappingSchema):
+    name = colander.SchemaNode(colander.String(),
+                               validator=colander.Regex(r"^[a-zA-Z0-9_\-]{3,255}$"))
+
+    label = colander.SchemaNode(colander.String())
+    description = colander.SchemaNode(colander.String(), missing=None, default=None)
+
+
+class EntryCollectionUpdate(colander.MappingSchema):
+    label = colander.SchemaNode(colander.String())
+    description = colander.SchemaNode(colander.String(), missing=None, default=None)

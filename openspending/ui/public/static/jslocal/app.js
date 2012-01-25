@@ -6,6 +6,8 @@
     }
     // setup source dropdown if we have CKAN-URI
     setupNewSource($('#new-source'));
+
+    setupBrowser();
   });
 
 function getCkanDatasetInfo(datasetUrl) {
@@ -73,6 +75,15 @@ function setupNewSource($els) {
       });
     }
   });
+}
+
+function setupBrowser() {
+  $('#select_all_entries').click(function(event) {
+      var checked = this.checked;
+      $(':checkbox.select_entry').each(function() {
+          this.checked = checked;
+        });
+    });
 }
 
 // end the local closure

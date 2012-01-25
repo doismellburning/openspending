@@ -18,7 +18,7 @@
   </span>
 
   <div py:def="entries_page(dataset, page)">
-    <!-- templates/_util.html entries_page -->
+<!-- templates/_util.html entries_page -->
     <table class="zebra-striped">
       <thead>
         <tr>
@@ -26,7 +26,7 @@
           <th>Spender</th>
           <th>Recipient</th>
           <th class="num">Amount</th>
-          <th>&nbsp;</th>
+          <th><input py:if="defined('collect_url')" type="checkbox" name="select_all" id="select_all_entries"/></th>
         </tr>
       </thead>
       <tbody>
@@ -49,6 +49,7 @@
             ${entry.get('currency')}
           </td>
           <td>
+            <input py:if="defined('collect_url')" class="select_entry" type="checkbox" name="entry_select" value="${entry['id']}" />
             <a href="${h.entry_url(dataset.name, entry)}">
               details&raquo;
             </a>
@@ -60,7 +61,7 @@
   </div>
 
   <div py:def="view_times()" class="view-panel last" py:strip="True">
-    <!-- templates/_util.html view_times -->
+<!-- templates/_util.html view_times -->
     <li py:if="c.view" class="dropdown" data-dropdown="dropdown">
       <a href="#" class="dropdown-toggle">${c.time}</a>
       <ul class="dropdown-menu">
@@ -71,6 +72,32 @@
         </py:for>
       </ul>
     </li>
+  </div>
+
+  <div py:def="collection_adder(description)" class="row">
+<!-- templates/_util.html collect_entry -->
+     <div class="span16">
+      <py:if test="can.account.logged_in()">
+            <input name="return_url" type="hidden" value="${request.path_info}" />
+            <input type="submit" class="btn" value="Add ${description} to collection" />
+            <select name="collection" id="collection">
+              <py:choose>
+                <option py:when="c.current_collection is not None" selected="selected" value="${c.current_collection.name}">
+                    ${c.current_collection.label}
+                </option>
+                <option py:otherwise="otherwise" selected="selected" value="">
+                    (select a collection)
+                </option>
+              </py:choose>
+              <option value="-- New --">-- New collection --</option>
+              <py:for each="collection in sorted(c.collections)">
+                <option py:if="collection is not c.current_collection" value="${collection.name}">
+                  ${collection.label}
+                </option>
+              </py:for>
+            </select>
+      </py:if>
+     </div>
   </div>
 </html>
 

@@ -7,6 +7,8 @@
 
   <py:def function="page_title">${c.dataset.label}</py:def>
 
+  <py:def function="collect_url">${h.url(controller='entry', action='collect_list', dataset=c.dataset.name)}</py:def>
+
   <div py:def="content">
     <!-- templates/entry/index.html -->
     ${dataset_nav('search')}

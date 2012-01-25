@@ -7,7 +7,7 @@
 
   <xi:include href="_util.html" />
 
-  <!-- templates/layout.html top -->
+<!-- templates/layout.html top -->
 
   <py:if test="len(_form_errors)">
     <div py:match="input|select" py:strip="" py:with="error = _form_errors.get(str(select('@name')))">
@@ -43,7 +43,7 @@
     </py:if>
   </head>
 
-  <!-- templates/layout.html body -->
+<!-- templates/layout.html body -->
 
   <body>
 
@@ -98,9 +98,9 @@
         </div>
         </py:with>
 <!-- ************************************************************************************************** -->
-        <!-- templates/layout.html content include start -->
+<!-- templates/layout.html content include start -->
         ${content()}
-        <!-- templates/layout.html content include end -->
+<!-- templates/layout.html content include end -->
 <!-- ************************************************************************************************** -->
 
       <footer>

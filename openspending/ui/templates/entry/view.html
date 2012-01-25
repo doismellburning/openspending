@@ -8,6 +8,8 @@
 
   <py:def function="page_title">Entry Details</py:def>
 
+  <py:def function="collect_url">${h.url(controller='entry', action='collect', dataset=c.dataset.name, id=c.id)}</py:def>
+
   <div py:def="content" class="entry-page">
     <!-- templates/entry/view.html -->
 
@@ -21,6 +23,10 @@
       <small>Detailed View of Transaction</small>
     </h2>
 
+    <form method="POST" action="${collect_url()}">
+      ${collection_adder('this entry')}
+    </form>
+          
     <div class="row">
       <py:if test="c.custom_html">
         ${Markup(c.custom_html)}

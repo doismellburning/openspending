@@ -120,7 +120,10 @@ class Api2Controller(BaseController):
     def _to_collection(self, params, dataset, errors):
         if dataset is None:
             return
+
         name = params.get('to_collection')
+        if name == '':
+            return
 
         if db.session.query().filter(dataset.entry_collection.name == name).count() > 0:
             # This could be permitted - there's no underlying issue
