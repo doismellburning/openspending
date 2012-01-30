@@ -55,7 +55,7 @@
   </div>
 </div>
 
-<form method="POST" action="${collect_url()}">
+<form method="POST" action="${collect_url() if defined('collect_url') else ''}">
 
 <py:if test="defined('collect_url')">
   ${collection_adder('selected entries')}

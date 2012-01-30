@@ -147,3 +147,6 @@ class DatasetController(BaseController):
         c.meta = json.dumps(meta)
         return render('dataset/timeline.html')
 
+    def collections(self, dataset, format='json'):
+        self._get_dataset(dataset)
+        return to_jsonp(map(lambda c: c.as_dict(), c.dataset.entry_collection.all()))

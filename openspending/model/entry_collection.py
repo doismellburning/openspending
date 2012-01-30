@@ -41,6 +41,11 @@ class BaseEntryCollection(object):
         x = self.find_entry(entry_id)
         db.session.delete(x)
 
+    def as_dict(self):
+        return {'name': self.name, 'label': self.label, 'description': self.description,
+                'created_at': self.created_at, 'updated_at': self.updated_at,
+                }
+
     def __init__(self, name):
         assert name != ''
         self.name = name

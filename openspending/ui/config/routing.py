@@ -81,6 +81,7 @@ def make_map():
     map.connect('/{dataset}/model', controller='dataset', action='model')
     map.connect('/{dataset}/meta', controller='dataset', action='about')
     map.connect('/{dataset}/timeline', controller='dataset', action='timeline')
+    map.connect('/{dataset}/collections.json', controller='dataset', action='collections', format='json')
 
     map.connect('/{dataset}/editor', controller='editor', action='index')
     map.connect('/{dataset}/editor/core', controller='editor',
