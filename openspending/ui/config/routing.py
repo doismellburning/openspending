@@ -103,6 +103,8 @@ def make_map():
             action='retract', conditions=dict(method=['POST']))
     map.connect('/{dataset}/editor/drop', controller='editor',
             action='drop', conditions=dict(method=['POST']))
+    map.connect('/{dataset}/editor/delete', controller='editor',
+            action='delete', conditions=dict(method=['POST']))
     
     map.connect('/{dataset}/sources', controller='source',
             action='create', conditions=dict(method=['POST']))
@@ -144,8 +146,8 @@ def make_map():
 
     map.connect('/{dataset}/{dimension}.json',
                 controller='dimension', action='view', format='json')
-    map.connect('/{dataset}/{dimension}.csv',
-                controller='dimension', action='view', format='csv')
+    #map.connect('/{dataset}/{dimension}.csv',
+    #            controller='dimension', action='view', format='csv')
     map.connect('/{dataset}/{dimension}',
                 controller='dimension', action='view')
     
